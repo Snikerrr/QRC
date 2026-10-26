@@ -1,0 +1,12 @@
+# Core dependencies
+numpy>=2.0
+pandas>=2.0
+scikit-learn>=1.3
+
+# Quantum simulation
+qiskit>=1.0
+qiskit-aer>=0.14
+
+# Verified with:
+#   numpy 2.4.4 / pandas 3.0.3 / scikit-learn 1.8.0
+#   qiskit 2.5.1 / qiskit-aer 0.17.2  (Python 3.13)

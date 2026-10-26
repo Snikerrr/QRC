@@ -1,0 +1,33 @@
+# ---- Data (large; not tracked) ----
+data/
+
+# ---- Experiment outputs ----
+outputs/
+
+# ---- Local backups ----
+qrc/backup_*/
+
+# ---- Cross-project comparison scripts (contain local absolute paths) ----
+comparison/
+
+# ---- Local notes / workspace config ----
+.workbuddy/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
