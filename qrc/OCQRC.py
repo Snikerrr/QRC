@@ -1,20 +1,3 @@
-"""OCQRC - coupled classical-quantum reservoir computing for multi-step water-level forecasting.
-
-Protocol
-  water      120 inputs -> 24 predictions  (144-column windows)
-  benchmark   18 inputs -> 18 predictions  ( 36-column windows)
-
-Modes
-  tune    staged hyper-parameter search, then final full run (default)
-  final   no search, use the configured hyper-parameters
-
-Usage
-  python OCQRC.py --dry-run
-  python OCQRC.py --datasets <name> --only water
-  python OCQRC.py --mode final --num-qubits 4 --ridge-param 1e-2
-"""
-
-
 from __future__ import annotations
 
 import argparse
@@ -38,8 +21,6 @@ from qiskit.quantum_info import SparsePauliOp, Pauli
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from qiskit_aer.backends import AerSimulator
 
-# ---------------------------------------------------------------- metrics & output
-
 
 def smape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     denom = (np.abs(y_true) + np.abs(y_pred)) / 2.0
@@ -47,7 +28,6 @@ def smape(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def evaluate_steps(y_true: np.ndarray, y_pred: np.ndarray) -> pd.DataFrame:
-    """Per-step MSE and SMAPE."""
     rows = []
     for step in range(y_true.shape[1]):
         yt, yp = y_true[:, step], y_pred[:, step]
@@ -61,7 +41,6 @@ def evaluate_steps(y_true: np.ndarray, y_pred: np.ndarray) -> pd.DataFrame:
 
 def save_results(output_dir: Path, model_name: str, y_true: np.ndarray,
                  y_pred: np.ndarray, meta: dict | None = None) -> pd.DataFrame:
-    """Write metrics.csv, artifacts.npz and meta.json."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
     metrics = evaluate_steps(y_true, y_pred)
@@ -89,8 +68,6 @@ OUTPUTS = os.path.join(ROOT, "outputs")
 MODEL = "OCQRC"
 SWEEP_ROOT = os.path.join(OUTPUTS, "sweep_OCQRC")
 
-# ============================================================================
-# ============================================================================
 RUN_WATER = True
 RUN_BENCHMARK = True
 
@@ -105,22 +82,7 @@ FINAL_MAX_TRAIN_BENCH, FINAL_MAX_TEST_BENCH = 3000, 800
 METRIC = "Avg_MSE"
 TRAIN_RATIO = 0.7
 SCALE = 1.0
-# ============================================================================
 
-# ---------------------------------------------------------------- dataset registry
-#
-# Dataset names are not hard-coded here. Pass them on the command line:
-#
-#   python OCQRC.py --datasets my_dataset --only water
-#
-# A name given via --datasets is resolved automatically:
-#   <name> -> data/<name>.csv                  protocol "water"      (120 -> 24)
-#   <name> -> data/benchmark_18_18/<name>.csv   protocol "benchmark"  ( 18 -> 18)
-#
-# Names may also be listed explicitly below, e.g.
-#   WATER_STATIONS = ["station_A", "station_B"]
-#   BENCHMARKS     = ["benchmark_A"]
-# but this is optional and only affects runs that do not pass --datasets.
 WATER_STATIONS: list[str] = []
 BENCHMARKS: list[str] = []
 
@@ -367,9 +329,6 @@ class OCQRC_Model:
         return self.evolve_qrc(t0) + self.evolve_crc(t0)
 
     def _evolve_seq(self, seq):
-        """Reset the reservoir, feed seq scalar by scalar, return final state.
-
-        warmup: seq[0] is fed 3 times, the remaining values once."""
         seq = list(seq)
         self.last_output = deepcopy(self.initial_exp_values)
         self.x = deepcopy(self.init_xinit)
@@ -405,7 +364,6 @@ class OCQRC_Model:
         self.train_fit_sec = time.perf_counter() - t_fit
 
     def fit(self, ridge_param=None):
-        """Fit the Ridge readout (state -> next value)."""
         rp = self.ridge_param if ridge_param is None else ridge_param
         self.ridge = Ridge(rp)
         self.ridge.fit(self.train_X, self.train_Y)
@@ -513,7 +471,6 @@ def build_model(params: dict, proto: str) -> OCQRC_Model:
 
 
 def run_model(data: dict, params: dict) -> dict:
-    """Train and evaluate one dataset."""
     ctx, pred = data["ctx"], data["pred"]
     model = build_model(params, data["proto"])
     train_windows = data["train_windows"]
@@ -549,7 +506,6 @@ def run_model(data: dict, params: dict) -> dict:
 
 
 def _capped(data: dict, budget: dict) -> dict:
-    """Data view truncated by the sampling budget."""
     d = dict(data)
     if budget.get("max_train"):
         d["train_windows"] = d["train_windows"][: budget["max_train"]]
@@ -575,7 +531,6 @@ def eval_full(params: dict, budget: dict, data: dict) -> dict:
 
 
 def eval_ridge_group(params: dict, budget: dict, data: dict, values: list):
-    """The reservoir is evolved once; only the readout is refit per ridge value."""
     d = _capped(data, budget)
     model = build_model(params, d["proto"])
     train_windows = d["train_windows"]
@@ -616,8 +571,6 @@ def eval_ridge_group(params: dict, budget: dict, data: dict, values: list):
 
 
 class ResultStore:
-    """Append search results to disk (supports resume)."""
-
     def __init__(self, path: str, dataset: str, protocol: str, metric: str):
         self.path = path
         self.dataset = dataset
@@ -719,7 +672,6 @@ def _parse_grid(spec: str) -> dict:
 def run_search(mode: str, grid_spec: str, stages_arg: str, no_fast_ridge: bool,
                metric: str, data: dict, budget: dict, store: ResultStore,
                cfg_base: dict | None = None) -> tuple:
-    """Run the search; return (winning params, store)."""
     cfg = dict(cfg_base or BASE_CFG)
     t_sweep = time.perf_counter()
     counter = {"done": 0}
@@ -825,7 +777,6 @@ def write_tuning_artefacts(name: str, proto: str, best_cfg: dict, best_scores: d
 
 def finalize_outputs(name: str, proto: str, params: dict, res: dict,
                      pred_len: int) -> None:
-    """Save all outputs for one dataset."""
     ds_dir = os.path.join(OUTPUTS, MODEL, name)
     os.makedirs(ds_dir, exist_ok=True)
     meta = {
@@ -867,7 +818,6 @@ def finalize_outputs(name: str, proto: str, params: dict, res: dict,
 
 
 def rebuild_summary() -> pd.DataFrame | None:
-    """Rebuild the summary CSV from all per-dataset metrics.csv."""
     rows = []
     model_root = os.path.join(OUTPUTS, MODEL)
     if not os.path.isdir(model_root):
@@ -894,7 +844,6 @@ def rebuild_summary() -> pd.DataFrame | None:
 
 
 def _lookup_dataset(name: str, prefer: str | None = None):
-    """Map a bare name to (name, path, protocol) by locating its CSV file."""
     candidates = [
         (os.path.join(DATA, f"{name}.csv"), "water"),
         (os.path.join(BENCH, f"{name}.csv"), "benchmark"),
